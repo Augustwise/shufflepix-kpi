@@ -13,6 +13,10 @@
     <artifactId>shufflepix-client</artifactId>
     <name>ShufflePix Client</name>
 
+    <properties>
+        <main.class>com.shufflepix.client.Launcher</main.class>
+    </properties>
+
     <dependencies>
         <dependency>
             <groupId>com.shufflepix</groupId>
@@ -50,4 +54,16 @@
             <scope>test</scope>
         </dependency>
     </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.openjfx</groupId>
+                <artifactId>javafx-maven-plugin</artifactId>
+                <configuration>
+                    <mainClass>${main.class}</mainClass>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
 </project>

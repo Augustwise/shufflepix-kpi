@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.CheckBox?>
+<?import javafx.scene.control.ComboBox?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ListView?>
+<?import javafx.scene.control.Menu?>
+<?import javafx.scene.control.MenuBar?>
+<?import javafx.scene.control.MenuItem?>
+<?import javafx.scene.control.ScrollPane?>
+<?import javafx.scene.control.SeparatorMenuItem?>
+<?import javafx.scene.control.Separator?>
+<?import javafx.scene.control.Slider?>
+<?import javafx.scene.control.Spinner?>
+<?import javafx.scene.control.ToggleButton?>
+<?import javafx.scene.control.ToggleGroup?>
+<?import javafx.scene.control.Tooltip?>
+<?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.VBox?>
+
+<BorderPane xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="com.shufflepix.client.ui.MainController"
+            prefWidth="1280" prefHeight="800">
+
+    <fx:define>
+        <ToggleGroup fx:id="toolGroup"/>
+    </fx:define>
+
+    <top>
+        <MenuBar>
+            <Menu text="Файл">
+                <MenuItem text="Створити…" accelerator="Shortcut+N" onAction="#onNewImage"/>
+                <MenuItem text="Відкрити…" accelerator="Shortcut+O" onAction="#onOpenFile"/>
+                <MenuItem text="Експортувати…" accelerator="Shortcut+S" onAction="#onExport"/>
+                <SeparatorMenuItem/>
+                <MenuItem text="Вихід" onAction="#onExit"/>
+            </Menu>
+            <Menu text="Правка">
+                <MenuItem fx:id="undoItem" text="Скасувати" accelerator="Shortcut+Z" onAction="#onUndo"/>
+                <MenuItem fx:id="redoItem" text="Повторити" accelerator="Shortcut+Y" onAction="#onRedo"/>
+            </Menu>
+            <Menu text="Вигляд">
+                <MenuItem text="Збільшити" accelerator="Shortcut+EQUALS" onAction="#onZoomIn"/>
+                <MenuItem text="Зменшити" accelerator="Shortcut+MINUS" onAction="#onZoomOut"/>
+                <MenuItem text="Масштаб 100 %" accelerator="Shortcut+DIGIT0" onAction="#onZoomReset"/>
+            </Menu>
+            <Menu text="Ефекти">
+                <MenuItem text="Чорно-білий" userData="GRAYSCALE" onAction="#onApplyEffect"/>
+                <MenuItem text="Інфрачервоний" userData="INFRARED" onAction="#onApplyEffect"/>
+                <MenuItem text="Негатив" userData="NEGATIVE" onAction="#onApplyEffect"/>
+                <MenuItem text="Сепія" userData="SEPIA" onAction="#onApplyEffect"/>
+                <MenuItem text="Розмиття…" onAction="#onApplyBlur"/>
+            </Menu>
+            <Menu text="Проєкт">
+                <MenuItem text="Зберегти на сервері" onAction="#onSaveToServer"/>
+                <MenuItem text="Відкрити із сервера…" onAction="#onOpenFromServer"/>
+                <MenuItem text="Керувати проєктами…" onAction="#onManageProjects"/>
+            </Menu>
+        </MenuBar>
+    </top>
+
+    <left>
+        <VBox styleClass="tool-panel" spacing="6">
+            <padding><Insets top="8" right="8" bottom="8" left="8"/></padding>
+            <Label text="Інструменти" styleClass="panel-title"/>
+            <ToggleButton text="Олівець" userData="pencil" toggleGroup="$toolGroup" selected="true" maxWidth="Infinity"/>
+            <ToggleButton text="Лінія" userData="line" toggleGroup="$toolGroup" maxWidth="Infinity"/>
+            <ToggleButton text="Прямокутник" userData="rectangle" toggleGroup="$toolGroup" maxWidth="Infinity"/>
+            <ToggleButton text="Еліпс" userData="ellipse" toggleGroup="$toolGroup" maxWidth="Infinity"/>
+            <ToggleButton text="Гумка" userData="eraser" toggleGroup="$toolGroup" maxWidth="Infinity"/>
+            <ToggleButton text="Текст" userData="text" toggleGroup="$toolGroup" maxWidth="Infinity"/>
+            <Separator/>
+            <Label text="Товщина лінії"/>
+            <Spinner fx:id="lineWidthSpinner" editable="true" maxWidth="Infinity"/>
+            <CheckBox fx:id="fillCheck" text="Заливка"/>
+            <Separator/>
+            <Label text="Шрифт"/>
+            <ComboBox fx:id="fontCombo" maxWidth="Infinity"/>
+            <Spinner fx:id="fontSizeSpinner" editable="true" maxWidth="Infinity"/>
+        </VBox>
+    </left>
+
+    <center>
+        <ScrollPane fx:id="canvasScroll" pannable="false" styleClass="canvas-scroll"/>
+    </center>
+
+    <right>
+        <VBox styleClass="layers-panel" spacing="6" prefWidth="240">
+            <padding><Insets top="8" right="8" bottom="8" left="8"/></padding>
+            <Label text="Шари" styleClass="panel-title"/>
+            <ListView fx:id="layerList" VBox.vgrow="ALWAYS"/>
+            <HBox spacing="4">
+                <Button text="+" onAction="#onAddLayer"><tooltip><Tooltip text="Додати шар"/></tooltip></Button>
+                <Button fx:id="removeLayerButton" text="−" onAction="#onRemoveLayer"><tooltip><Tooltip text="Видалити шар"/></tooltip></Button>
+                <Button text="⧉" onAction="#onDuplicateLayer"><tooltip><Tooltip text="Дублювати шар"/></tooltip></Button>
+                <Button text="▲" onAction="#onLayerUp"><tooltip><Tooltip text="Вгору"/></tooltip></Button>
+                <Button text="▼" onAction="#onLayerDown"><tooltip><Tooltip text="Вниз"/></tooltip></Button>
+            </HBox>
+            <Label text="Непрозорість"/>
+            <Slider fx:id="opacitySlider" min="0" max="100" value="100" showTickLabels="true" majorTickUnit="25"/>
+            <Label text="Ефекти шару"/>
+            <ListView fx:id="effectList" prefHeight="120"/>
+            <Button text="Вилучити ефект" onAction="#onRemoveEffect" maxWidth="Infinity"/>
+        </VBox>
+    </right>
+
+    <bottom>
+        <VBox>
+            <HBox fx:id="paletteBox" styleClass="palette-box" spacing="8">
+                <padding><Insets top="6" right="8" bottom="6" left="8"/></padding>
+            </HBox>
+            <HBox styleClass="status-bar" spacing="16">
+                <padding><Insets top="2" right="8" bottom="2" left="8"/></padding>
+                <Label fx:id="statusLabel" text="Готово"/>
+                <Label fx:id="zoomLabel" text="100 %"/>
+            </HBox>
+        </VBox>
+    </bottom>
+</BorderPane>
