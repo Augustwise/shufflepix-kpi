@@ -1,5 +1,6 @@
 package com.shufflepix.client.core;
 
+import com.shufflepix.client.DemoProjectFactory;
 import com.shufflepix.client.core.effect.BlurEffect;
 import com.shufflepix.client.core.effect.EffectRegistry;
 import com.shufflepix.client.core.effect.GrayscaleEffect;
@@ -175,6 +176,26 @@ class LayerCompositorTest {
 
         project.getActiveLayer().setVisible(true);
         assertTrue(compositor.hasVisibleLayers(project));
+    }
+
+    @Test
+    void composesDemoProjectWithVisibleLayersAndExcludesHiddenLayer() {
+        Project demo = DemoProjectFactory.create();
+        WritableImage composed = compositor.compose(demo, Color.WHITE);
+
+        assertEquals(DemoProjectFactory.WIDTH, (int) composed.getWidth());
+        assertEquals(DemoProjectFactory.HEIGHT, (int) composed.getHeight());
+
+        // Hidden layer draws a pink rectangle at (540..760, 470..565) over blue water.
+        // At (650, 500) the composed pixel must remain water-colored (blue > red), not hidden pink.
+        int waterPixel = composed.getPixelReader().getArgb(650, 500);
+        assertEquals(255, alpha(waterPixel));
+        assertTrue(blue(waterPixel) > red(waterPixel) + 50,
+                "Прихований шар не повинен потрапити у підсумкове зображення, argb=" + Integer.toHexString(waterPixel));
+
+        // Visible shapes layer draws a red rectangle with 0.85 opacity at (45..175, 405..495) over green/water.
+        int shapePixel = composed.getPixelReader().getArgb(100, 430);
+        assertTrue(red(shapePixel) > 160, "Видимий шар фігур має бути накладений на пейзаж");
     }
 
     @Test

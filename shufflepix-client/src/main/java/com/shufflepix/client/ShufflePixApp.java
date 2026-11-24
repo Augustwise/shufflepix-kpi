@@ -21,6 +21,9 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class ShufflePixApp extends Application {
+    public static final String DEMO_ARG = "--demo";
+    public static final String DEMO_PROPERTY = "shufflepix.demo";
+
     public static void main(String[] args) {
         launch(args);
     }
@@ -29,6 +32,9 @@ public class ShufflePixApp extends Application {
     public void start(Stage stage) throws IOException {
         ClientConfig config = ClientConfig.load();
         Editor editor = new Editor();
+        if (isDemoMode()) {
+            editor.setProject(DemoProjectFactory.create());
+        }
         ImageFileService files = new ImageFileService();
 
         RestClient rest = new RestClient(config);
@@ -63,5 +69,11 @@ public class ShufflePixApp extends Application {
         });
         controller.setStage(stage);
         stage.show();
+    }
+
+    private boolean isDemoMode() {
+        Parameters params = getParameters();
+        return Boolean.getBoolean(DEMO_PROPERTY)
+                || (params != null && params.getRaw().contains(DEMO_ARG));
     }
 }
