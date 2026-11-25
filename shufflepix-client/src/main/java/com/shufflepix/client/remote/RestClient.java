@@ -7,17 +7,24 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.shufflepix.client.config.ClientConfig;
+import com.shufflepix.common.api.ApiPaths;
 import com.shufflepix.common.dto.ErrorResponse;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Map;
+import java.util.Objects;
+import java.util.UUID;
 
 public class RestClient {
+    private static final byte[] CRLF = "\r\n".getBytes(StandardCharsets.US_ASCII);
+
     private final URI baseUrl;
     private final Duration requestTimeout;
     private final HttpClient http;
@@ -27,10 +34,14 @@ public class RestClient {
             .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
 
     public RestClient(ClientConfig config) {
-        this.baseUrl = config.getServerUrl();
-        this.requestTimeout = config.getRequestTimeout();
+        this(config.getServerUrl(), config.getConnectTimeout(), config.getRequestTimeout());
+    }
+
+    public RestClient(URI baseUrl, Duration connectTimeout, Duration requestTimeout) {
+        this.baseUrl = Objects.requireNonNull(baseUrl, "baseUrl");
+        this.requestTimeout = Objects.requireNonNull(requestTimeout, "requestTimeout");
         this.http = HttpClient.newBuilder()
-                .connectTimeout(config.getConnectTimeout())
+                .connectTimeout(Objects.requireNonNull(connectTimeout, "connectTimeout"))
                 .build();
     }
 
@@ -57,7 +68,51 @@ public class RestClient {
 
     public <T> T sendMultipart(String method, String path, Object projectPart,
                                Map<String, byte[]> pngParts, Class<T> type) {
-        throw new UnsupportedOperationException("RestClient.sendMultipart");
+        Objects.requireNonNull(method, "method");
+        Objects.requireNonNull(projectPart, "projectPart");
+        String boundary = "----ShufflePixBoundary" + UUID.randomUUID().toString().replace("-", "");
+        byte[] body = buildMultipartBody(boundary, write(projectPart), pngParts);
+        HttpRequest req = request(path)
+                .header("Content-Type", "multipart/form-data; boundary=" + boundary)
+                .method(method, HttpRequest.BodyPublishers.ofByteArray(body))
+                .build();
+        return read(send(req).body(), json.getTypeFactory().constructType(type));
+    }
+
+    private static byte[] buildMultipartBody(String boundary, byte[] projectJson, Map<String, byte[]> pngParts) {
+        ByteArrayOutputStream out = new ByteArrayOutputStream(projectJson.length + 512);
+        writePart(out, boundary, ApiPaths.PART_PROJECT, "project.json",
+                "application/json; charset=UTF-8", projectJson);
+        if (pngParts != null) {
+            for (Map.Entry<String, byte[]> entry : pngParts.entrySet()) {
+                String name = entry.getKey();
+                byte[] content = entry.getValue();
+                if (name == null || name.isBlank() || content == null) {
+                    throw new IllegalArgumentException("Некоректна частина multipart-запиту: " + name);
+                }
+                String safeName = sanitizeHeaderToken(name);
+                writePart(out, boundary, safeName, safeName + ".png", ApiPaths.IMAGE_PNG, content);
+            }
+        }
+        writeAscii(out, "--" + boundary + "--\r\n");
+        return out.toByteArray();
+    }
+
+    private static void writePart(ByteArrayOutputStream out, String boundary, String name,
+                                  String fileName, String contentType, byte[] data) {
+        writeAscii(out, "--" + boundary + "\r\n");
+        writeAscii(out, "Content-Disposition: form-data; name=\"" + name + "\"; filename=\"" + fileName + "\"\r\n");
+        writeAscii(out, "Content-Type: " + contentType + "\r\n\r\n");
+        out.writeBytes(data);
+        out.writeBytes(CRLF);
+    }
+
+    private static void writeAscii(ByteArrayOutputStream out, String text) {
+        out.writeBytes(text.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static String sanitizeHeaderToken(String value) {
+        return value.replace("\"", "_").replace("\r", "").replace("\n", "");
     }
 
     public static String path(String template, Object... values) {

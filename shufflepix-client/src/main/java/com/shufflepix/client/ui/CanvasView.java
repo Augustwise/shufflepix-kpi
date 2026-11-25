@@ -7,6 +7,7 @@ import com.shufflepix.client.core.shape.CanvasPreviewRenderer;
 import javafx.scene.Group;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
+import javafx.scene.image.Image;
 import javafx.scene.image.PixelWriter;
 import javafx.scene.image.WritableImage;
 import javafx.scene.input.MouseButton;
@@ -55,8 +56,15 @@ public class CanvasView extends StackPane {
         gc.fillRect(0, 0, imageCanvas.getWidth(), imageCanvas.getHeight());
         for (Layer layer : project.getLayers()) {
             if (layer.isVisible()) {
-                gc.setGlobalAlpha(layer.getOpacity());
-                gc.drawImage(layer.getRendered().getImage(), 0, 0);
+                try {
+                    Image rendered = layer.getRendered().getImage();
+                    gc.setGlobalAlpha(layer.getOpacity());
+                    gc.drawImage(rendered, 0, 0);
+                } catch (RuntimeException ex) {
+                    layer.setVisible(false);
+                    gc.setGlobalAlpha(1.0);
+                    errorHandler.accept(ex);
+                }
             }
         }
         gc.setGlobalAlpha(1.0);

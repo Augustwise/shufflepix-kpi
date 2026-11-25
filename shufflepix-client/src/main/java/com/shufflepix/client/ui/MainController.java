@@ -267,21 +267,104 @@ public class MainController {
     private void onSaveToServer() {
         Project project = editor.getProject();
         if (project.getServerId() == null) {
-            TextInputDialog nameDialog = new TextInputDialog(project.getName());
+            saveNewProjectFlow(project, project.getName());
+            return;
+        }
+        try {
+            storage.save(project);
+            setStatus("Проєкт «" + project.getName() + "» збережено на сервері");
+        } catch (ServerUnavailableException e) {
+            offerExportOnServerUnavailable(e);
+        } catch (RemoteException e) {
+            if (e.isVersionConflict()) {
+                if (Dialogs.confirm(stage, e.getMessage() + "\n\nЗберегти вашу версію як новий проєкт?")) {
+                    saveConflictedAsNewProject(project);
+                }
+            } else if (e.isNotFound()) {
+                project.detachFromServer();
+                project.markDirty();
+                if (Dialogs.confirm(stage, "Цей проєкт було видалено із сервера.\nЗберегти його як новий проєкт?")) {
+                    saveNewProjectFlow(project, project.getName());
+                }
+            } else {
+                showError(e);
+            }
+        } catch (RuntimeException e) {
+            showError(e);
+        }
+        refresh();
+    }
+
+    private void saveConflictedAsNewProject(Project project) {
+        project.detachFromServer();
+        project.markDirty();
+        saveNewProjectFlow(project, project.getName() + " (копія)");
+    }
+
+    private void saveNewProjectFlow(Project project, String suggestedName) {
+        String originalName = project.getName();
+        String candidate = suggestedName;
+        while (true) {
+            var entered = promptProjectName(candidate);
+            if (entered.isEmpty()) {
+                project.setName(originalName);
+                refresh();
+                return;
+            }
+            candidate = entered.get();
+            project.setName(candidate);
+            try {
+                storage.save(project);
+                setStatus("Проєкт «" + project.getName() + "» збережено на сервері");
+                refresh();
+                return;
+            } catch (ServerUnavailableException e) {
+                project.setName(originalName);
+                refresh();
+                offerExportOnServerUnavailable(e);
+                return;
+            } catch (RemoteException e) {
+                if ("NAME_CONFLICT".equals(e.getCode())) {
+                    Dialogs.error(stage, e.getMessage());
+                    continue;
+                }
+                project.setName(originalName);
+                showError(e);
+                refresh();
+                return;
+            } catch (RuntimeException e) {
+                project.setName(originalName);
+                showError(e);
+                refresh();
+                return;
+            }
+        }
+    }
+
+    private java.util.Optional<String> promptProjectName(String initialValue) {
+        while (true) {
+            TextInputDialog nameDialog = new TextInputDialog(initialValue);
             nameDialog.initOwner(stage);
             nameDialog.setTitle("Зберегти на сервері");
             nameDialog.setHeaderText(null);
             nameDialog.setContentText("Назва проєкту:");
-            var name = nameDialog.showAndWait();
-            if (name.isEmpty() || name.get().isBlank()) {
-                return;
+            var result = nameDialog.showAndWait();
+            if (result.isEmpty()) {
+                return java.util.Optional.empty();
             }
-            project.setName(name.get().strip());
+            String trimmed = result.get().strip();
+            if (trimmed.isEmpty()) {
+                Dialogs.warning(stage, "Назва проєкту не може бути порожньою.");
+                continue;
+            }
+            return java.util.Optional.of(trimmed);
         }
-        safely(() -> {
-            storage.save(project);
-            setStatus("Проєкт «" + project.getName() + "» збережено на сервері");
-        });
+    }
+
+    private void offerExportOnServerUnavailable(ServerUnavailableException e) {
+        if (Dialogs.confirm(stage, e.getMessage() + "\n\nЕкспортувати зображення в локальний файл?")) {
+            onExport();
+        }
     }
 
     @FXML
@@ -289,14 +372,42 @@ public class MainController {
         if (!confirmDiscardChanges()) {
             return;
         }
-        ProjectCatalogDialog dialog = new ProjectCatalogDialog(stage, storage, ProjectCatalogDialog.Mode.OPEN);
-        safely(() -> {
-            dialog.reload();
-            dialog.showAndWait().map(ProjectSummaryDto::id).ifPresent(id -> {
-                editor.setProject(storage.open(id));
-                canvasView.setZoom(1.0);
-            });
-        });
+        while (true) {
+            ProjectCatalogDialog dialog = new ProjectCatalogDialog(stage, storage, ProjectCatalogDialog.Mode.OPEN);
+            try {
+                dialog.reload();
+            } catch (RuntimeException e) {
+                showError(e);
+                return;
+            }
+            var selected = dialog.showAndWait().map(ProjectSummaryDto::id);
+            if (selected.isEmpty()) {
+                return;
+            }
+            try {
+                Project opened = storage.open(selected.get());
+                for (Layer layer : opened.getLayers()) {
+                    if (layer.isVisible()) {
+                        layer.getRendered().getImage();
+                    }
+                }
+                editor.setProject(opened);
+                setZoom(1.0);
+                setStatus("Відкрито проєкт «" + opened.getName() + "»");
+                refresh();
+                return;
+            } catch (RemoteException e) {
+                if (e.isNotFound()) {
+                    Dialogs.warning(stage, "Проєкт не знайдено на сервері. Каталог буде оновлено.");
+                    continue;
+                }
+                showError(e);
+                return;
+            } catch (RuntimeException e) {
+                showError(e);
+                return;
+            }
+        }
     }
 
     @FXML
